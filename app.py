@@ -387,6 +387,29 @@ def new_item():
     return redirect(url_for('items'))
 
 
+@app.route('/items/new-multi', methods=['POST'])
+@login_required
+def new_item_multi():
+    names  = request.form.getlist('name[]')
+    uoms   = request.form.getlist('uom[]')
+    prices = request.form.getlist('price[]')
+    created = 0
+    for i, name in enumerate(names):
+        name = name.strip()
+        if not name:
+            continue
+        db.session.add(Item(
+            name          = name,
+            default_uom   = uoms[i] if i < len(uoms) else '',
+            default_price = float(prices[i] if i < len(prices) and prices[i] else 0),
+            created_by_id = current_user.id,
+        ))
+        created += 1
+    db.session.commit()
+    flash(f"{created} item(s) added.", "success")
+    return redirect(url_for('items'))
+
+
 @app.route('/items/<int:item_id>/delete', methods=['POST'])
 @login_required
 def delete_item(item_id):
@@ -478,6 +501,22 @@ def admin_reset_password(user_id):
         return redirect(url_for('admin_users'))
     u.set_password(pw); db.session.commit()
     flash(f"Password reset for '{u.username}'.", "success")
+    return redirect(url_for('admin_users'))
+
+
+@app.route('/admin/users/<int:user_id>/delete', methods=['POST'])
+@login_required
+@admin_required
+def admin_delete_user(user_id):
+    u = User.query.get_or_404(user_id)
+    if u.id == current_user.id:
+        flash("You cannot delete your own account.", "danger")
+        return redirect(url_for('admin_users'))
+    if u.role == 'admin':
+        flash("Cannot delete another admin account.", "danger")
+        return redirect(url_for('admin_users'))
+    db.session.delete(u); db.session.commit()
+    flash(f"User '{u.username}' deleted.", "success")
     return redirect(url_for('admin_users'))
 
 
