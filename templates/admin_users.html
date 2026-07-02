@@ -1,0 +1,79 @@
+{% extends "base.html" %}
+{% block title %}Manage Users — FORTUNAPET{% endblock %}
+{% block content %}
+<div class="toolbar">
+  <h1 class="page-title" style="margin:0">Manage Users — FORTUNAPET</h1>
+  <button class="btn btn-primary" onclick="document.getElementById('newUserModal').classList.add('open')">+ Add user</button>
+</div>
+
+<div class="card" style="padding:0;overflow-x:auto">
+  <table>
+    <thead><tr><th>Username</th><th>Full name</th><th>Role</th><th>Status</th><th>Created</th><th></th></tr></thead>
+    <tbody>
+      {% for u in users %}
+      <tr>
+        <td>{{ u.username }}</td>
+        <td>{{ u.full_name }}</td>
+        <td><span class="badge {{ 'badge-accent' if u.role=='admin' else 'badge-neutral' }}">{{ u.role }}</span></td>
+        <td>{% if u.active %}<span class="badge badge-success">Active</span>{% else %}<span class="badge badge-danger">Disabled</span>{% endif %}</td>
+        <td style="font-size:11px;color:#6b7280">{{ u.created_at.strftime('%d %b %Y') }}</td>
+        <td style="white-space:nowrap">
+          <button class="btn btn-sm" onclick="openReset('{{ u.id }}','{{ u.username }}')">Reset PW</button>
+          {% if u.id != current_user.id %}
+          <form method="POST" action="{{ url_for('admin_toggle_user', user_id=u.id) }}" style="display:inline">
+            <button class="btn btn-sm {{ 'btn-danger' if u.active else '' }}" type="submit">{{ 'Disable' if u.active else 'Enable' }}</button>
+          </form>
+          {% endif %}
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+<!-- NEW USER MODAL -->
+<div class="modal-overlay" id="newUserModal">
+  <div class="modal" style="width:380px">
+    <div class="modal-title">Add team member</div>
+    <form method="POST" action="{{ url_for('admin_new_user') }}">
+      <div class="form-row"><label>Full name *</label><input type="text" name="full_name" required></div>
+      <div class="form-row"><label>Username *</label><input type="text" name="username" required placeholder="e.g. rahul"></div>
+      <div class="form-row"><label>Password *</label><input type="text" name="password" required placeholder="min 6 characters"></div>
+      <div class="form-row">
+        <label>Role</label>
+        <select name="role">
+          <option value="staff">Staff — sees only their own customers/PIs</option>
+          <option value="admin">Admin — sees everything</option>
+        </select>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn" onclick="document.getElementById('newUserModal').classList.remove('open')">Cancel</button>
+        <button type="submit" class="btn btn-primary">Create user</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- RESET PASSWORD MODAL -->
+<div class="modal-overlay" id="resetModal">
+  <div class="modal" style="width:340px">
+    <div class="modal-title">Reset password for <span id="reset-username"></span></div>
+    <form method="POST" id="resetForm">
+      <div class="form-row"><label>New password *</label><input type="text" name="new_password" required placeholder="min 6 characters"></div>
+      <div class="modal-footer">
+        <button type="button" class="btn" onclick="document.getElementById('resetModal').classList.remove('open')">Cancel</button>
+        <button type="submit" class="btn btn-primary">Reset</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<script>
+function openReset(id, username){
+  document.getElementById('resetForm').action = '/admin/users/' + id + '/reset-password';
+  document.getElementById('reset-username').textContent = username;
+  document.getElementById('resetModal').classList.add('open');
+}
+document.querySelectorAll('.modal-overlay').forEach(m => m.addEventListener('click', e => { if(e.target === m) m.classList.remove('open'); }));
+</script>
+{% endblock %}

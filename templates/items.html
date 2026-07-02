@@ -1,0 +1,78 @@
+{% extends "base.html" %}
+{% block title %}Items{% endblock %}
+{% block content %}
+<div class="toolbar">
+  <h1 class="page-title" style="margin:0">Items</h1>
+  <div style="display:flex;gap:8px">
+    <a href="{{ url_for('item_template') }}" class="btn">⬇ Download import template</a>
+    <button class="btn" onclick="document.getElementById('importModal').classList.add('open')">⬆ Bulk import</button>
+    <button class="btn btn-primary" onclick="document.getElementById('newItemModal').classList.add('open')">+ Add item</button>
+  </div>
+</div>
+
+<div class="card" style="padding:0;overflow-x:auto">
+  <table>
+    <thead><tr><th>Item name</th><th>Default UOM</th><th>Default price</th><th>Added by</th><th></th></tr></thead>
+    <tbody>
+      {% for it in items %}
+      <tr>
+        <td>{{ it.name }}</td>
+        <td>{{ it.default_uom or '—' }}</td>
+        <td>₹{{ it.default_price }}</td>
+        <td style="font-size:11px;color:#6b7280">{{ it.created_by.full_name }}</td>
+        <td>
+          <form method="POST" action="{{ url_for('delete_item', item_id=it.id) }}" style="display:inline" onsubmit="return confirm('Delete this item?')">
+            <button class="btn btn-sm btn-danger" type="submit">Del</button>
+          </form>
+        </td>
+      </tr>
+      {% else %}
+      <tr><td colspan="5"><div class="empty">No items yet.</div></td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+<!-- NEW ITEM MODAL -->
+<div class="modal-overlay" id="newItemModal">
+  <div class="modal" style="width:400px">
+    <div class="modal-title">Add item</div>
+    <form method="POST" action="{{ url_for('new_item') }}">
+      <div class="form-row"><label>Item name *</label><input type="text" name="name" required></div>
+      <div class="fg2">
+        <div class="form-row">
+          <label>Default UOM</label>
+          <select name="default_uom">
+            <option value="">—</option>
+            {% for u in uom_options %}<option value="{{ u }}">{{ u }}</option>{% endfor %}
+          </select>
+        </div>
+        <div class="form-row"><label>Default price (₹)</label><input type="number" step="any" name="default_price"></div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn" onclick="document.getElementById('newItemModal').classList.remove('open')">Cancel</button>
+        <button type="submit" class="btn btn-primary">Save</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- BULK IMPORT MODAL -->
+<div class="modal-overlay" id="importModal">
+  <div class="modal" style="width:400px">
+    <div class="modal-title">Bulk import items</div>
+    <p class="helptext" style="margin-bottom:12px">Upload a .csv or .xlsx file with columns: <b>name, uom, price</b>. Download the template above to get the exact format.</p>
+    <form method="POST" action="{{ url_for('bulk_import_items') }}" enctype="multipart/form-data">
+      <div class="form-row"><label>File</label><input type="file" name="file" accept=".csv,.xlsx" required></div>
+      <div class="modal-footer">
+        <button type="button" class="btn" onclick="document.getElementById('importModal').classList.remove('open')">Cancel</button>
+        <button type="submit" class="btn btn-primary">Import</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<script>
+document.querySelectorAll('.modal-overlay').forEach(m => m.addEventListener('click', e => { if(e.target === m) m.classList.remove('open'); }));
+</script>
+{% endblock %}
