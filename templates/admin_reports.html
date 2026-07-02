@@ -1,0 +1,105 @@
+{% extends "base.html" %}
+{% block title %}Staff Reports — FORTUNAPET{% endblock %}
+{% block content %}
+<h1 class="page-title">Staff Reports & Targets</h1>
+
+<!-- SUMMARY CARDS -->
+<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:14px;margin-bottom:20px">
+  {% for s in summaries %}
+  <div class="card" style="padding:14px">
+    <div style="font-size:13px;font-weight:600;margin-bottom:8px;color:var(--accent)">{{ s.user.full_name }}</div>
+    <div style="font-size:11.5px;color:var(--muted);margin-bottom:6px">{{ s.user.username }}</div>
+    <div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:3px">
+      <span>Total docs</span><strong>{{ s.total_docs }}</strong>
+    </div>
+    <div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:3px">
+      <span>Total amount</span><strong>Rs.{{ "{:,.0f}".format(s.total_amount) }}</strong>
+    </div>
+    <div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:3px">
+      <span>Delivered</span><strong style="color:var(--success)">Rs.{{ "{:,.0f}".format(s.delivered_amount) }}</strong>
+    </div>
+    <div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:3px">
+      <span>Pending</span><strong style="color:var(--warning)">{{ s.pending_count }}</strong>
+    </div>
+    <div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:8px">
+      <span>Lost</span><strong style="color:#7c3aed">{{ s.lost_count }}</strong>
+    </div>
+    {% if s.target %}
+    <div style="font-size:11px;color:var(--muted);margin-bottom:3px">
+      Target: Rs.{{ "{:,.0f}".format(s.target) }} — <strong>{{ s.target_pct }}% achieved</strong>
+    </div>
+    <div class="progress-bar"><div class="progress-fill" style="width:{{ [s.target_pct,100]|min }}%"></div></div>
+    {% else %}
+    <div style="font-size:11px;color:var(--muted)">No target set</div>
+    {% endif %}
+    <div style="margin-top:10px;display:flex;gap:6px;flex-wrap:wrap">
+      <a href="{{ url_for('admin_reports', user_id=s.user.id) }}" class="btn btn-sm btn-primary">View details</a>
+      <button class="btn btn-sm" onclick="openTarget('{{ s.user.id }}','{{ s.user.full_name }}','{{ s.target }}')">Set target</button>
+    </div>
+  </div>
+  {% else %}
+  <div class="empty">No staff members yet.</div>
+  {% endfor %}
+</div>
+
+<!-- DETAIL TABLE FOR SELECTED USER -->
+{% if selected_user %}
+<div class="card">
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+    <div style="font-size:14px;font-weight:600;color:var(--accent)">{{ selected_user.full_name }} — All Documents</div>
+    <a href="{{ url_for('admin_reports') }}" class="btn btn-sm">✕ Close</a>
+  </div>
+  <div style="overflow-x:auto">
+  <table>
+    <thead><tr><th>Quote No.</th><th>Date</th><th>Customer</th><th>Item</th><th>Total</th><th>Status</th><th>Lost reason</th><th>Follow-up</th></tr></thead>
+    <tbody>
+      {% for d in detail_docs %}
+      <tr>
+        <td><span class="badge b-accent">{{ d.quote_no }}</span></td>
+        <td>{{ d.doc_date.strftime('%d %b %y') }}</td>
+        <td style="max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ d.customer.name }}</td>
+        <td style="max-width:150px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ d.item_desc }}</td>
+        <td>Rs.{{ "{:,.0f}".format(d.total_amount) }}</td>
+        <td>
+          {% if d.status=='delivered' %}<span class="badge b-success">Delivered</span>
+          {% elif d.status=='lost' %}<span class="badge b-lost">Lost</span>
+          {% else %}<span class="badge b-warning">Pending</span>{% endif %}
+        </td>
+        <td style="font-size:11px;color:var(--muted)">{{ d.lost_reason or '—' }}</td>
+        <td>{{ d.follow_up_date.strftime('%d %b') if d.follow_up_date else '—' }}</td>
+      </tr>
+      {% else %}
+      <tr><td colspan="8"><div class="empty">No documents.</div></td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  </div>
+</div>
+{% endif %}
+
+<!-- SET TARGET MODAL -->
+<div class="modal-overlay" id="targetModal">
+  <div class="modal" style="width:340px">
+    <div class="modal-title">Set monthly target</div>
+    <div style="font-size:13px;margin-bottom:12px;color:var(--muted)" id="target-name"></div>
+    <form method="POST" id="targetForm">
+      <div class="form-row"><label>Monthly target amount (Rs.)</label>
+        <input type="number" step="any" name="monthly_target" id="target-input" placeholder="e.g. 500000">
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn" onclick="closeModal('targetModal')">Cancel</button>
+        <button type="submit" class="btn btn-primary">Save target</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<script>
+function openTarget(uid, name, current){
+  document.getElementById('targetForm').action='/admin/users/'+uid+'/set-target';
+  document.getElementById('target-name').textContent='Staff: '+name;
+  document.getElementById('target-input').value=current||'';
+  openModal('targetModal');
+}
+</script>
+{% endblock %}
