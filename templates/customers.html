@@ -22,7 +22,7 @@
         <td style="font-size:11px;color:var(--muted)">{{ c.created_by.full_name }}</td>
         <td>
           {% if c.phone %}<a href="https://wa.me/{{ c.phone|replace(' ','')|replace('+','')|replace('-','') }}" target="_blank" class="btn btn-sm btn-wa">WA</a>{% endif %}
-          <form method="POST" action="{{ url_for('delete_customer', cid=c.id) }}" style="display:inline" onsubmit="return confirm('Delete?')">
+          <form method="POST" action="{{ url_for('delete_customer', cust_id=c.id) }}" style="display:inline" onsubmit="return confirm('Delete?')">
             <button class="btn btn-sm btn-danger">Del</button>
           </form>
         </td>
