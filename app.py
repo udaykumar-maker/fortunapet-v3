@@ -322,10 +322,10 @@ def new_customer():
     return redirect(url_for('customers'))
 
 
-@app.route('/customers/<int:cid>/delete', methods=['POST'])
+@app.route('/customers/<int:cust_id>/delete', methods=['POST'])
 @login_required
-def delete_customer(cid):
-    c = Customer.query.get_or_404(cid)
+def delete_customer(cust_id):
+    c = Customer.query.get_or_404(cust_id)
     if not current_user.is_admin() and c.created_by_id != current_user.id:
         flash("Access denied.", "danger")
         return redirect(url_for('customers'))
@@ -387,10 +387,10 @@ def new_item():
     return redirect(url_for('items'))
 
 
-@app.route('/items/<int:iid>/delete', methods=['POST'])
+@app.route('/items/<int:item_id>/delete', methods=['POST'])
 @login_required
-def delete_item(iid):
-    db.session.delete(Item.query.get_or_404(iid)); db.session.commit()
+def delete_item(item_id):
+    db.session.delete(Item.query.get_or_404(item_id)); db.session.commit()
     flash("Item deleted.", "success"); return redirect(url_for('items'))
 
 
@@ -454,11 +454,11 @@ def admin_new_user():
     return redirect(url_for('admin_users'))
 
 
-@app.route('/admin/users/<int:uid>/toggle', methods=['POST'])
+@app.route('/admin/users/<int:user_id>/toggle', methods=['POST'])
 @login_required
 @admin_required
-def admin_toggle_user(uid):
-    u = User.query.get_or_404(uid)
+def admin_toggle_user(user_id):
+    u = User.query.get_or_404(user_id)
     if u.id == current_user.id:
         flash("Cannot deactivate your own account.", "danger")
         return redirect(url_for('admin_users'))
@@ -467,11 +467,11 @@ def admin_toggle_user(uid):
     return redirect(url_for('admin_users'))
 
 
-@app.route('/admin/users/<int:uid>/reset-password', methods=['POST'])
+@app.route('/admin/users/<int:user_id>/reset-password', methods=['POST'])
 @login_required
 @admin_required
-def admin_reset_password(uid):
-    u  = User.query.get_or_404(uid)
+def admin_reset_password(user_id):
+    u  = User.query.get_or_404(user_id)
     pw = request.form.get('new_password','')
     if len(pw) < 6:
         flash("Password must be at least 6 characters.", "danger")
@@ -481,11 +481,11 @@ def admin_reset_password(uid):
     return redirect(url_for('admin_users'))
 
 
-@app.route('/admin/users/<int:uid>/set-target', methods=['POST'])
+@app.route('/admin/users/<int:user_id>/set-target', methods=['POST'])
 @login_required
 @admin_required
-def admin_set_target(uid):
-    u = User.query.get_or_404(uid)
+def admin_set_target(user_id):
+    u = User.query.get_or_404(user_id)
     u.monthly_target = float(request.form.get('monthly_target') or 0)
     db.session.commit()
     flash(f"Target updated for '{u.full_name}'.", "success")
