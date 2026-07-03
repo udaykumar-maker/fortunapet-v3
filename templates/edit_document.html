@@ -1,0 +1,202 @@
+{% extends "base.html" %}
+{% block title %}Edit {{ doc.quote_no }} — FORTUNAPET{% endblock %}
+{% block content %}
+<div class="toolbar">
+  <h1 class="page-title" style="margin:0">Edit — {{ doc.quote_no }}</h1>
+  <a href="{{ url_for('documents') }}" class="btn">← Back</a>
+</div>
+<div class="card" style="max-width:820px">
+  <form method="POST">
+    <!-- Header -->
+    <div class="fg2">
+      <div class="form-row"><label>Type</label>
+        <select name="doc_type">
+          <option value="PI" {{ 'selected' if doc.doc_type=='PI' }}>Proforma Invoice (PI)</option>
+          <option value="Quote" {{ 'selected' if doc.doc_type=='Quote' }}>Quotation</option>
+        </select>
+      </div>
+      <div class="form-row"><label>Date</label>
+        <input type="date" name="doc_date" value="{{ doc.doc_date.isoformat() }}" required>
+      </div>
+    </div>
+    <div class="fg2">
+      <div class="form-row"><label>Customer *</label>
+        <select name="customer_id" required>
+          {% for c in customers %}
+          <option value="{{ c.id }}" {{ 'selected' if c.id==doc.customer_id }}>{{ c.name }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="form-row"><label>Dispatch from *</label>
+        <select name="dispatch_from" required>
+          {% for u in dispatch_units %}
+          <option value="{{ u }}" {{ 'selected' if doc.dispatch_from==u }}>{{ u }}</option>
+          {% endfor %}
+        </select>
+      </div>
+    </div>
+
+    <!-- Item rows -->
+    <div style="font-size:12px;font-weight:600;margin-bottom:6px;color:var(--accent)">Items</div>
+    <div style="overflow-x:auto;margin-bottom:6px">
+      <table style="font-size:12px" id="e-item-table">
+        <thead>
+          <tr style="background:#f9fafb">
+            <th style="min-width:200px;padding:6px">Item description *</th>
+            <th style="min-width:90px;padding:6px">Packaging</th>
+            <th style="min-width:80px;padding:6px">Qty *</th>
+            <th style="min-width:80px;padding:6px">UOM</th>
+            <th style="min-width:90px;padding:6px">Price (Rs.)</th>
+            <th style="min-width:100px;padding:6px">Line total</th>
+            <th style="padding:6px"></th>
+          </tr>
+        </thead>
+        <tbody id="e-rows">
+          {% for li in doc.line_items %}
+          <tr id="e-row-{{ loop.index0 }}">
+            <td style="padding:4px"><input type="text" name="item_desc[]" list="e-item-list" value="{{ li.item_desc }}" oninput="eRecalc()" style="min-width:180px" required></td>
+            <td style="padding:4px"><input type="text" name="packaging[]" value="{{ li.packaging or '' }}" style="width:80px"></td>
+            <td style="padding:4px"><input type="number" step="any" name="qty[]" value="{{ li.qty }}" oninput="eRecalc()" style="width:72px"></td>
+            <td style="padding:4px">
+              <select name="uom[]" style="width:76px">
+                <option value="">—</option>
+                {% for u in uom_options %}<option value="{{ u }}" {{ 'selected' if li.uom==u }}>{{ u }}</option>{% endfor %}
+              </select>
+            </td>
+            <td style="padding:4px"><input type="number" step="any" name="price[]" value="{{ li.price }}" oninput="eRecalc()" style="width:82px"></td>
+            <td style="padding:4px;font-weight:600;min-width:90px">Rs.{{ "{:,.0f}".format(li.line_total) }}</td>
+            <td style="padding:4px">
+              {% if not loop.first %}
+              <button type="button" class="btn btn-sm btn-danger" onclick="this.closest('tr').remove();eRecalc()">✕</button>
+              {% endif %}
+            </td>
+          </tr>
+          {% else %}
+          <!-- Legacy single-item fallback -->
+          <tr id="e-row-0">
+            <td style="padding:4px"><input type="text" name="item_desc[]" value="{{ doc.item_desc or '' }}" oninput="eRecalc()" style="min-width:180px" required></td>
+            <td style="padding:4px"><input type="text" name="packaging[]" value="{{ doc.packaging or '' }}" style="width:80px"></td>
+            <td style="padding:4px"><input type="number" step="any" name="qty[]" value="{{ doc.qty or '' }}" oninput="eRecalc()" style="width:72px"></td>
+            <td style="padding:4px">
+              <select name="uom[]" style="width:76px">
+                <option value="">—</option>
+                {% for u in uom_options %}<option value="{{ u }}" {{ 'selected' if doc.uom==u }}>{{ u }}</option>{% endfor %}
+              </select>
+            </td>
+            <td style="padding:4px"><input type="number" step="any" name="price[]" value="{{ doc.price or '' }}" oninput="eRecalc()" style="width:82px"></td>
+            <td style="padding:4px;font-weight:600" id="e-lt-0">Rs.0</td>
+            <td></td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    <button type="button" class="btn btn-sm" onclick="eAddRow()" style="margin-bottom:14px">+ Add item row</button>
+
+    <!-- GST / Freight -->
+    <div class="fg2" style="margin-bottom:10px">
+      <div>
+        <div class="form-row" style="display:flex;align-items:center;gap:10px;margin-bottom:0">
+          <label style="margin:0;white-space:nowrap">GST (18%)</label>
+          <div class="toggle-wrap">
+            <button type="button" class="toggle-opt {{ '' if doc.gst_applied else 'active' }}" id="e-gst-no" onclick="eSetGst(false)">No GST</button>
+            <button type="button" class="toggle-opt {{ 'active' if doc.gst_applied else '' }}" id="e-gst-yes" onclick="eSetGst(true)">+ Add GST</button>
+          </div>
+          <input type="checkbox" name="gst_applied" id="e-gst-cb" {{ 'checked' if doc.gst_applied }} style="display:none">
+        </div>
+      </div>
+      <div class="form-row" style="margin-bottom:0"><label>Freight charges (Rs.)</label>
+        <input type="number" step="any" name="freight_charges" id="e-freight" value="{{ doc.freight_charges }}" oninput="eRecalc()">
+      </div>
+    </div>
+    <div class="amt-box" style="margin-bottom:14px">
+      <div class="amt-row"><span>Base amount (all items)</span><span id="e-s-base">Rs.{{ "{:,.0f}".format(doc.base_amount) }}</span></div>
+      <div class="amt-row"><span>GST @ 18%</span><span id="e-s-gst">Rs.{{ "{:,.0f}".format(doc.gst_amount) }}</span></div>
+      <div class="amt-row"><span>Freight</span><span id="e-s-freight">Rs.{{ "{:,.0f}".format(doc.freight_charges) }}</span></div>
+      <div class="amt-row total"><span>Total payable</span><span id="e-s-total">Rs.{{ "{:,.0f}".format(doc.total_amount) }}</span></div>
+    </div>
+
+    <div class="fg2">
+      <div class="form-row"><label>Follow-up date</label>
+        <input type="date" name="follow_up_date" value="{{ doc.follow_up_date.isoformat() if doc.follow_up_date else '' }}">
+      </div>
+      <div class="form-row"><label>Status</label>
+        <select name="status" id="e-status" onchange="eToggleLost()">
+          {% for s in doc_statuses %}
+          <option value="{{ s }}" {{ 'selected' if doc.status==s }}>{{ s|capitalize }}</option>
+          {% endfor %}
+        </select>
+      </div>
+    </div>
+    <div class="form-row" id="e-lost-row" style="{{ '' if doc.status=='lost' else 'display:none' }}">
+      <label>Lost reason</label>
+      <input type="text" name="lost_reason" value="{{ doc.lost_reason or '' }}" placeholder="e.g. Price too high">
+    </div>
+    <div class="form-row"><label>Notes</label><textarea name="notes" rows="2">{{ doc.notes or '' }}</textarea></div>
+
+    <div style="display:flex;gap:10px;margin-top:16px">
+      <button type="submit" class="btn btn-primary">Save changes</button>
+      <a href="{{ url_for('documents') }}" class="btn">Cancel</a>
+    </div>
+  </form>
+</div>
+
+<datalist id="e-item-list">
+  {% for it in items %}<option value="{{ it.name }}">{% endfor %}
+</datalist>
+
+<script>
+const E_UOM = {{ uom_options | tojson }};
+let eGst = {{ 'true' if doc.gst_applied else 'false' }};
+let eRowCount = {{ doc.line_items|length if doc.line_items else 1 }};
+
+function eAddRow(){
+  const tbody = document.getElementById('e-rows');
+  const i = eRowCount++;
+  const tr = document.createElement('tr');
+  tr.id='e-row-'+i;
+  tr.innerHTML=`
+    <td style="padding:4px"><input type="text" name="item_desc[]" list="e-item-list" placeholder="Item name" oninput="eRecalc()" style="min-width:180px"></td>
+    <td style="padding:4px"><input type="text" name="packaging[]" placeholder="e.g. 50BOX" style="width:80px"></td>
+    <td style="padding:4px"><input type="number" step="any" name="qty[]" placeholder="0" oninput="eRecalc()" style="width:72px"></td>
+    <td style="padding:4px"><select name="uom[]" style="width:76px"><option value="">—</option>${E_UOM.map(u=>`<option>${u}</option>`).join('')}</select></td>
+    <td style="padding:4px"><input type="number" step="any" name="price[]" placeholder="0" oninput="eRecalc()" style="width:82px"></td>
+    <td style="padding:4px;font-weight:600;min-width:90px" id="e-lt-${i}">Rs.0</td>
+    <td style="padding:4px"><button type="button" class="btn btn-sm btn-danger" onclick="this.closest('tr').remove();eRecalc()">✕</button></td>`;
+  tbody.appendChild(tr);
+}
+
+function eSetGst(v){
+  eGst=v;
+  document.getElementById('e-gst-yes').classList.toggle('active',v);
+  document.getElementById('e-gst-no').classList.toggle('active',!v);
+  document.getElementById('e-gst-cb').checked=v;
+  eRecalc();
+}
+
+function eRecalc(){
+  let base=0;
+  document.querySelectorAll('#e-rows tr').forEach((tr,idx)=>{
+    const qty=parseFloat(tr.querySelector('[name="qty[]"]')?.value)||0;
+    const price=parseFloat(tr.querySelector('[name="price[]"]')?.value)||0;
+    const lt=qty*price; base+=lt;
+    const ltCell=tr.querySelectorAll('td')[5];
+    if(ltCell) ltCell.textContent='Rs.'+lt.toLocaleString('en-IN',{maximumFractionDigits:0});
+  });
+  const freight=parseFloat(document.getElementById('e-freight').value)||0;
+  const gst=eGst?base*0.18:0;
+  const total=base+gst+freight;
+  document.getElementById('e-s-base').textContent='Rs.'+base.toLocaleString('en-IN',{maximumFractionDigits:0});
+  document.getElementById('e-s-gst').textContent='Rs.'+gst.toLocaleString('en-IN',{maximumFractionDigits:0});
+  document.getElementById('e-s-freight').textContent='Rs.'+freight.toLocaleString('en-IN',{maximumFractionDigits:0});
+  document.getElementById('e-s-total').textContent='Rs.'+total.toLocaleString('en-IN',{maximumFractionDigits:0});
+}
+
+function eToggleLost(){
+  document.getElementById('e-lost-row').style.display=
+    document.getElementById('e-status').value==='lost'?'block':'none';
+}
+
+document.addEventListener('DOMContentLoaded', eRecalc);
+</script>
+{% endblock %}
