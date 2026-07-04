@@ -709,7 +709,7 @@ def _csv_response(headers, rows, filename):
 # ── STARTUP ───────────────────────────────────────────────────────────────────
 
 with app.app_context():
-    db.create_all()
+    db.create_all()   # creates document_item table if missing
     is_pg = 'postgresql' in str(db.engine.url)
     with db.engine.connect() as conn:
         stmts = ([
@@ -720,6 +720,8 @@ with app.app_context():
             'ALTER TABLE document ADD COLUMN IF NOT EXISTS qty FLOAT DEFAULT 0',
             'ALTER TABLE document ADD COLUMN IF NOT EXISTS uom VARCHAR(20)',
             'ALTER TABLE document ADD COLUMN IF NOT EXISTS price FLOAT DEFAULT 0',
+            # Critical: allow NULL so multi-item docs work (items go in document_item table)
+            'ALTER TABLE document ALTER COLUMN item_desc DROP NOT NULL',
         ] if is_pg else [
             'ALTER TABLE "user" ADD COLUMN monthly_target FLOAT DEFAULT 0',
             'ALTER TABLE document ADD COLUMN lost_reason TEXT',
