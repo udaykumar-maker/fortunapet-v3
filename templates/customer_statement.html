@@ -1,0 +1,58 @@
+{% extends "base.html" %}
+{% block title %}{{ customer.name }} — Statement{% endblock %}
+{% block content %}
+<div class="toolbar">
+  <h1 class="page-title" style="margin:0">{{ customer.name }}</h1>
+  <a href="{{ url_for('customers') }}" class="btn">← Back to Customers</a>
+</div>
+
+<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:18px">
+  <div class="metric"><div class="lbl">Total business</div><div class="val">Rs.{{ "{:,.0f}".format(total) }}</div></div>
+  <div class="metric"><div class="lbl">Delivered</div><div class="val" style="color:var(--success)">Rs.{{ "{:,.0f}".format(delivered) }}</div></div>
+  <div class="metric"><div class="lbl">Pending</div><div class="val" style="color:var(--warning)">Rs.{{ "{:,.0f}".format(pending) }}</div></div>
+  <div class="metric"><div class="lbl">Lost quotes</div><div class="val" style="color:#7c3aed">{{ lost_count }}</div></div>
+</div>
+
+<div class="card" style="padding:14px;margin-bottom:16px">
+  <div style="display:flex;gap:30px;flex-wrap:wrap">
+    {% if customer.contact_person %}<div><div style="font-size:11px;color:var(--muted)">Contact</div><div style="font-size:13px">{{ customer.contact_person }}</div></div>{% endif %}
+    {% if customer.phone %}<div><div style="font-size:11px;color:var(--muted)">WhatsApp</div>
+      <a href="https://wa.me/{{ customer.phone|replace(' ','')|replace('+','')|replace('-','') }}" target="_blank" style="font-size:13px;color:#25D366">{{ customer.phone }}</a></div>{% endif %}
+    <div><div style="font-size:11px;color:var(--muted)">Total documents</div><div style="font-size:13px">{{ docs|length }}</div></div>
+  </div>
+</div>
+
+<div class="card" style="padding:0;overflow-x:auto">
+  <table>
+    <thead><tr><th>Quote No.</th><th>Type</th><th>Date</th><th>Item</th><th>Qty</th><th>UOM</th><th>Base</th><th>GST</th><th>Freight</th><th>Total</th><th>Status</th><th>Follow-up</th><th></th></tr></thead>
+    <tbody>
+      {% for d in docs %}
+      <tr>
+        <td><span class="badge b-accent">{{ d.quote_no }}</span></td>
+        <td>{{ d.doc_type }}</td>
+        <td>{{ d.doc_date.strftime('%d %b %y') }}</td>
+        <td style="max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="{{ d.item_desc }}">{{ d.item_desc }}</td>
+        <td>{{ "{:,.0f}".format(d.qty) if d.qty else '—' }}</td>
+        <td>{{ d.uom or '—' }}</td>
+        <td>Rs.{{ "{:,.0f}".format(d.base_amount) }}</td>
+        <td>{% if d.gst_applied %}Rs.{{ "{:,.0f}".format(d.gst_amount) }}{% else %}—{% endif %}</td>
+        <td>{% if d.freight_charges %}Rs.{{ "{:,.0f}".format(d.freight_charges) }}{% else %}—{% endif %}</td>
+        <td style="font-weight:700">Rs.{{ "{:,.0f}".format(d.total_amount) }}</td>
+        <td>
+          {% if d.status=='delivered' %}<span class="badge b-success">Delivered</span>
+          {% elif d.status=='lost' %}<span class="badge b-lost" title="{{ d.lost_reason or '' }}">Lost</span>
+          {% else %}<span class="badge b-warning">Pending</span>{% endif %}
+        </td>
+        <td>{{ d.follow_up_date.strftime('%d %b') if d.follow_up_date else '—' }}</td>
+        <td style="white-space:nowrap">
+          <a href="{{ url_for('download_document_pdf', doc_id=d.id) }}" class="btn btn-sm btn-primary">PDF</a>
+          <a href="{{ url_for('edit_document', doc_id=d.id) }}" class="btn btn-sm">Edit</a>
+        </td>
+      </tr>
+      {% else %}
+      <tr><td colspan="13"><div class="empty">No documents for this customer yet.</div></td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}
