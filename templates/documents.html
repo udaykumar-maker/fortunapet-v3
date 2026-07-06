@@ -1,0 +1,244 @@
+{% extends "base.html" %}
+{% block title %}PI — FORTUNAPET{% endblock %}
+{% block content %}
+<div class="toolbar">
+  <h1 class="page-title">Proforma Invoices (PI)</h1>
+  <div style="display:flex;gap:8px">
+    <a href="{{ url_for('export_documents') }}" class="btn">⬇ Export Excel</a>
+    <button class="btn btn-primary" onclick="openModal('newDocModal')">+ New PI</button>
+  </div>
+</div>
+
+<form method="GET" class="filter-bar">
+  <input type="text" name="q" placeholder="Search customer, PI no, item..." value="{{ q }}" style="width:220px">
+  <select name="status" onchange="this.form.submit()" style="width:180px">
+    <option value="">All statuses</option>
+    {% for s in doc_statuses %}
+    <option value="{{ s }}" {{ 'selected' if status_filter==s }}>{{ status_labels[s] }}</option>
+    {% endfor %}
+  </select>
+  <button class="btn" type="submit">Filter</button>
+</form>
+
+<div class="card" style="padding:0;overflow-x:auto">
+  <table>
+    <thead><tr>
+      <th>PI No.</th><th>Date</th><th>Dispatch</th><th>Customer</th>
+      <th>Items</th><th>Total</th><th>Status</th><th>Follow-up</th><th>By</th><th></th>
+    </tr></thead>
+    <tbody>
+      {% for d in docs %}
+      <tr>
+        <td><span class="badge b-accent">{{ d.quote_no }}</span></td>
+        <td style="white-space:nowrap">{{ d.doc_date.strftime('%d %b %y') }}</td>
+        <td style="font-size:11px;color:var(--muted)">{{ d.dispatch_from }}</td>
+        <td style="max-width:110px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">
+          {% if d.customer %}<div>{{ d.customer.name }}</div>
+          <div style="font-size:10px;color:var(--muted)">{{ d.customer.code or '' }}</div>{% endif %}
+        </td>
+        <td style="max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ d.items_summary }}</td>
+        <td style="font-weight:700;white-space:nowrap">Rs.{{ "{:,.0f}".format(d.total_amount) }}</td>
+        <td>
+          {% if d.status=='delivered' %}<span class="badge b-success">Delivered</span>
+          {% elif d.status=='lost' %}<span class="badge b-lost" title="{{ d.lost_reason }}">Lost</span>
+          {% elif d.status=='price_approval_pending' %}<span class="badge b-warning">Price Approval</span>
+          {% elif d.status=='purchase_with_another_vendor' %}<span class="badge b-blue">Other Vendor</span>
+          {% else %}<span class="badge b-warning">Pending</span>{% endif %}
+        </td>
+        <td style="white-space:nowrap;font-size:11px">
+          {% if d.follow_up_date %}
+            {% if d.follow_up_date < today %}<span style="color:var(--danger)">{{ d.follow_up_date.strftime('%d %b') }} ⚠</span>
+            {% else %}{{ d.follow_up_date.strftime('%d %b') }}{% endif %}
+          {% else %}—{% endif %}
+        </td>
+        <td style="font-size:11px;color:var(--muted)">{{ d.created_by.full_name }}</td>
+        <td style="white-space:nowrap">
+          <a href="{{ url_for('download_document_pdf', doc_id=d.id) }}" class="btn btn-sm btn-primary">PDF</a>
+          <a href="{{ url_for('edit_document', doc_id=d.id) }}" class="btn btn-sm">Edit</a>
+          <form method="POST" action="{{ url_for('duplicate_document', doc_id=d.id) }}" style="display:inline">
+            <button class="btn btn-sm" type="submit">Copy</button>
+          </form>
+          <form method="POST" action="{{ url_for('delete_document', doc_id=d.id) }}" style="display:inline" onsubmit="return confirm('Delete this PI?')">
+            <button class="btn btn-sm btn-danger" type="submit">Del</button>
+          </form>
+        </td>
+      </tr>
+      {% else %}
+      <tr><td colspan="10"><div class="empty">No PIs found.</div></td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+<!-- NEW PI MODAL -->
+<div class="modal-overlay" id="newDocModal">
+  <div class="modal" style="width:780px;max-width:97vw">
+    <div class="modal-title">New Proforma Invoice (PI)</div>
+    <form method="POST" action="{{ url_for('new_document') }}">
+      <div class="fg2">
+        <div class="form-row"><label>Date</label>
+          <input type="date" name="doc_date" value="{{ today_iso }}" required>
+        </div>
+        <div class="form-row"><label>Dispatch From</label>
+          <select name="dispatch_from" id="n-dispatch">
+            {% for u in dispatch_units %}
+            <option value="{{ u }}" {{ 'selected' if u=='FORTUNAPET' }}>{{ u }}</option>
+            {% endfor %}
+          </select>
+        </div>
+      </div>
+      <div class="fg2">
+        <div class="form-row"><label>Customer *</label>
+          <select name="customer_id" required>
+            <option value="">— select —</option>
+            {% for c in customers %}
+            <option value="{{ c.id }}">{{ c.name }}{% if c.code %} ({{ c.code }}){% endif %}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="form-row"><label>Follow-up Date (auto: 7 days)</label>
+          <input type="date" name="follow_up_date" value="{{ default_followup }}">
+        </div>
+      </div>
+
+      <!-- ITEMS TABLE -->
+      <div style="font-size:12px;font-weight:700;margin-bottom:6px;color:var(--accent)">Items</div>
+      <div style="overflow-x:auto;margin-bottom:6px">
+        <table style="font-size:12px" id="n-item-table">
+          <thead><tr style="background:#F0F4FA">
+            <th style="min-width:200px;padding:7px">Item *</th>
+            <th style="min-width:80px;padding:7px">Pkg/Box</th>
+            <th style="min-width:75px;padding:7px">Qty *</th>
+            <th style="min-width:70px;padding:7px">Total Qty</th>
+            <th style="min-width:80px;padding:7px">UOM</th>
+            <th style="min-width:90px;padding:7px">Price (Rs.)</th>
+            <th style="min-width:95px;padding:7px">Line Total</th>
+            <th style="padding:7px"></th>
+          </tr></thead>
+          <tbody id="n-rows"></tbody>
+        </table>
+      </div>
+      <button type="button" class="btn btn-sm" onclick="nAddRow()" style="margin-bottom:14px">+ Add item row</button>
+
+      <div class="fg2" style="margin-bottom:10px">
+        <div>
+          <div style="display:flex;align-items:center;gap:10px">
+            <label style="margin:0;white-space:nowrap">GST (18%)</label>
+            <div class="toggle-wrap">
+              <button type="button" class="toggle-opt" id="n-gst-no" onclick="nSetGst(false)">No GST</button>
+              <button type="button" class="toggle-opt active" id="n-gst-yes" onclick="nSetGst(true)">+ Add GST</button>
+            </div>
+            <input type="checkbox" name="gst_applied" id="n-gst-cb" checked style="display:none">
+          </div>
+        </div>
+        <div class="form-row" style="margin:0"><label>Freight (Rs.)</label>
+          <input type="number" step="any" name="freight_charges" id="n-freight" value="0" oninput="nRecalc()">
+        </div>
+      </div>
+      <div class="amt-box" style="margin-bottom:12px">
+        <div class="amt-row"><span>Base amount</span><span id="n-s-base">Rs.0</span></div>
+        <div class="amt-row"><span>GST @ 18%</span><span id="n-s-gst">Rs.0</span></div>
+        <div class="amt-row"><span>Freight</span><span id="n-s-freight">Rs.0</span></div>
+        <div class="amt-row total"><span>Total Payable</span><span id="n-s-total">Rs.0</span></div>
+      </div>
+
+      <div class="fg2">
+        <div class="form-row"><label>Status</label>
+          <select name="status" id="n-status" onchange="nToggleLost()">
+            {% for s in doc_statuses %}
+            <option value="{{ s }}">{{ status_labels[s] }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="form-row" id="n-lost-row" style="display:none"><label>Reason</label>
+          <input type="text" name="lost_reason" placeholder="Why lost / pending approval?">
+        </div>
+      </div>
+      <div class="form-row"><label>Notes</label><textarea name="notes" rows="2"></textarea></div>
+      <div class="modal-footer">
+        <button type="button" class="btn" onclick="closeModal('newDocModal')">Cancel</button>
+        <button type="submit" class="btn btn-primary">Save PI</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<datalist id="n-item-list">{% for it in items %}<option value="{{ it.name }}">{% endfor %}</datalist>
+
+<script>
+const ITEMS_DATA = {{ items_data | tojson }};
+const UOM_OPTS  = {{ uom_options | tojson }};
+const TODAY     = '{{ today }}';
+let nGst=true, nRowCount=0;
+
+function nAddRow(){
+  const tbody=document.getElementById('n-rows');
+  const i=nRowCount++;
+  const tr=document.createElement('tr');
+  tr.id='n-row-'+i;
+  tr.innerHTML=`
+    <td style="padding:4px"><input type="text" name="item_desc[]" list="n-item-list" placeholder="Item name" oninput="nItemChange(this,${i})" style="min-width:180px" ${i===0?'required':''}></td>
+    <td style="padding:4px"><input type="number" step="any" name="packaging[]" id="n-pkg-${i}" placeholder="0" oninput="nCalcTotalQty(${i});nRecalc()" style="width:72px"></td>
+    <td style="padding:4px"><input type="number" step="any" name="qty[]" id="n-qty-${i}" placeholder="0" oninput="nCalcTotalQty(${i});nRecalc()" style="width:68px"></td>
+    <td style="padding:4px;font-weight:600;color:var(--accent);min-width:70px" id="n-tqty-${i}">0</td>
+    <td style="padding:4px"><select name="uom[]" id="n-uom-${i}" style="width:74px"><option value="">—</option>${UOM_OPTS.map(u=>`<option>${u}</option>`).join('')}</select></td>
+    <td style="padding:4px"><input type="number" step="any" name="price[]" id="n-price-${i}" placeholder="0" oninput="nRecalc()" style="width:82px"></td>
+    <td style="padding:4px;font-weight:600;min-width:90px" id="n-lt-${i}">Rs.0</td>
+    <td style="padding:4px">${i>0?`<button type="button" class="btn btn-sm btn-danger" onclick="document.getElementById('n-row-${i}').remove();nRecalc()">✕</button>`:''}</td>`;
+  tbody.appendChild(tr);
+}
+
+function nItemChange(input, i){
+  const data=ITEMS_DATA[input.value];
+  if(data){
+    const uomEl=document.getElementById('n-uom-'+i);
+    const priceEl=document.getElementById('n-price-'+i);
+    if(uomEl && data.uom) for(let o of uomEl.options) if(o.value===data.uom){o.selected=true;break;}
+    if(priceEl && data.price) priceEl.value=data.price;
+    nRecalc();
+  }
+}
+
+function nCalcTotalQty(i){
+  const pkg=parseFloat(document.getElementById('n-pkg-'+i)?.value)||0;
+  const qty=parseFloat(document.getElementById('n-qty-'+i)?.value)||0;
+  const tq=document.getElementById('n-tqty-'+i);
+  if(tq) tq.textContent=(pkg*qty).toLocaleString('en-IN',{maximumFractionDigits:2});
+}
+
+function nSetGst(v){
+  nGst=v;
+  document.getElementById('n-gst-yes').classList.toggle('active',v);
+  document.getElementById('n-gst-no').classList.toggle('active',!v);
+  document.getElementById('n-gst-cb').checked=v;
+  nRecalc();
+}
+
+function nRecalc(){
+  let base=0;
+  document.querySelectorAll('#n-rows tr').forEach(tr=>{
+    const pkg=parseFloat(tr.querySelector('[name="packaging[]"]')?.value)||0;
+    const qty=parseFloat(tr.querySelector('[name="qty[]"]')?.value)||0;
+    const price=parseFloat(tr.querySelector('[name="price[]"]')?.value)||0;
+    const totalQty=pkg*qty;
+    const lt=totalQty*price; base+=lt;
+    const ltCell=tr.querySelector('[id^="n-lt-"]');
+    if(ltCell) ltCell.textContent='Rs.'+lt.toLocaleString('en-IN',{maximumFractionDigits:0});
+  });
+  const freight=parseFloat(document.getElementById('n-freight').value)||0;
+  const gst=nGst?base*0.18:0;
+  const total=base+gst+freight;
+  document.getElementById('n-s-base').textContent='Rs.'+base.toLocaleString('en-IN',{maximumFractionDigits:0});
+  document.getElementById('n-s-gst').textContent='Rs.'+gst.toLocaleString('en-IN',{maximumFractionDigits:0});
+  document.getElementById('n-s-freight').textContent='Rs.'+freight.toLocaleString('en-IN',{maximumFractionDigits:0});
+  document.getElementById('n-s-total').textContent='Rs.'+total.toLocaleString('en-IN',{maximumFractionDigits:0});
+}
+
+function nToggleLost(){
+  const v=document.getElementById('n-status').value;
+  document.getElementById('n-lost-row').style.display=(v==='lost'||v==='price_approval_pending'||v==='purchase_with_another_vendor')?'block':'none';
+}
+
+document.addEventListener('DOMContentLoaded',()=>{ nAddRow(); nAddRow(); });
+</script>
+{% endblock %}
