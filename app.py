@@ -146,7 +146,7 @@ class DocumentItem(db.Model):
 
     @property
     def line_total(self):
-        return round((self.qty or 0) * (self.price or 0), 2)
+        return round(self.total_qty * (self.price or 0), 2)
 
 
 class Counter(db.Model):
