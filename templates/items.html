@@ -1,0 +1,121 @@
+{% extends "base.html" %}
+{% block title %}Items — FORTUNAPET{% endblock %}
+{% block content %}
+<div class="toolbar">
+  <h1 class="page-title">Items</h1>
+  <div style="display:flex;gap:8px">
+    <a href="{{ url_for('item_template') }}" class="btn">⬇ Template</a>
+    <button class="btn" onclick="openModal('importModal')">⬆ Bulk Import</button>
+    <button class="btn btn-primary" onclick="openModal('newItemModal')">+ Add Items</button>
+  </div>
+</div>
+
+<div class="card" style="padding:0;overflow-x:auto">
+  <table>
+    <thead><tr><th>#</th><th>Item name</th><th>Default UOM</th><th>Default price (Rs.)</th><th>Added by</th><th></th></tr></thead>
+    <tbody>
+      {% for it in items %}
+      <tr>
+        <td style="color:var(--muted);font-size:11px">{{ loop.index }}</td>
+        <td style="font-weight:500">{{ it.name }}</td>
+        <td>{{ it.default_uom or '—' }}</td>
+        <td>{{ it.default_price or '—' }}</td>
+        <td style="font-size:11px;color:var(--muted)">{{ it.created_by.full_name }}</td>
+        <td style="white-space:nowrap">
+          <button class="btn btn-sm" onclick="openEditItem({{ it.id }},'{{ it.name|replace("'","\\'") }}','{{ it.default_uom or '' }}','{{ it.default_price or 0 }}')">Edit</button>
+          <form method="POST" action="{{ url_for('delete_item', item_id=it.id) }}" style="display:inline" onsubmit="return confirm('Delete this item?')">
+            <button class="btn btn-sm btn-danger">Del</button>
+          </form>
+        </td>
+      </tr>
+      {% else %}
+      <tr><td colspan="6"><div class="empty">No items yet. Add items or bulk import.</div></td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+<!-- ADD MULTIPLE ITEMS -->
+<div class="modal-overlay" id="newItemModal">
+  <div class="modal" style="width:580px">
+    <div class="modal-title">Add Items</div>
+    <form method="POST" action="{{ url_for('new_item_multi') }}">
+      <div id="item-rows"></div>
+      <button type="button" class="btn btn-sm" style="margin-bottom:12px" onclick="addRow()">+ Add another row</button>
+      <div class="modal-footer">
+        <button type="button" class="btn" onclick="closeModal('newItemModal')">Cancel</button>
+        <button type="submit" class="btn btn-primary">Save all items</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- EDIT ITEM MODAL -->
+<div class="modal-overlay" id="editItemModal">
+  <div class="modal" style="width:400px">
+    <div class="modal-title">Edit Item</div>
+    <form method="POST" id="editItemForm">
+      <div class="form-row"><label>Item name *</label><input type="text" name="name" id="edit-item-name" required></div>
+      <div class="fg2">
+        <div class="form-row"><label>Default UOM</label>
+          <select name="default_uom" id="edit-item-uom">
+            <option value="">—</option>
+            {% for u in uom_options %}<option value="{{ u }}">{{ u }}</option>{% endfor %}
+          </select>
+        </div>
+        <div class="form-row"><label>Default price (Rs.)</label>
+          <input type="number" step="any" name="default_price" id="edit-item-price">
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn" onclick="closeModal('editItemModal')">Cancel</button>
+        <button type="submit" class="btn btn-primary">Save changes</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- BULK IMPORT -->
+<div class="modal-overlay" id="importModal">
+  <div class="modal" style="width:400px">
+    <div class="modal-title">Bulk Import Items</div>
+    <p class="helptext" style="margin-bottom:10px">Columns: <b>name, uom, price</b></p>
+    <form method="POST" action="{{ url_for('bulk_import_items') }}" enctype="multipart/form-data">
+      <div class="form-row"><label>File (.csv or .xlsx)</label><input type="file" name="file" accept=".csv,.xlsx" required></div>
+      <div class="modal-footer">
+        <button type="button" class="btn" onclick="closeModal('importModal')">Cancel</button>
+        <button type="submit" class="btn btn-primary">Import</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<script>
+const UOM={{ uom_options|tojson }};
+function makeRow(i){
+  const d=document.createElement('div');
+  d.style.cssText='display:grid;grid-template-columns:2fr 1fr 1fr auto;gap:8px;margin-bottom:8px;align-items:end';
+  d.innerHTML=`
+    <div><label style="font-size:11px;color:var(--muted)">Item name${i===0?' *':''}</label>
+      <input type="text" name="name[]" placeholder="e.g. 28mm Alaska cap" ${i===0?'required':''}></div>
+    <div><label style="font-size:11px;color:var(--muted)">UOM</label>
+      <select name="uom[]"><option value="">—</option>${UOM.map(u=>`<option>${u}</option>`).join('')}</select></div>
+    <div><label style="font-size:11px;color:var(--muted)">Price (Rs.)</label>
+      <input type="number" step="any" name="price[]" placeholder="0"></div>
+    <div style="padding-bottom:1px">${i>0?`<button type="button" class="btn btn-sm btn-danger" onclick="this.closest('div[style]').remove()">✕</button>`:''}</div>`;
+  return d;
+}
+let rowCount=0;
+function addRow(){document.getElementById('item-rows').appendChild(makeRow(rowCount++));}
+document.addEventListener('DOMContentLoaded',()=>{addRow();addRow();addRow();});
+
+function openEditItem(id, name, uom, price){
+  document.getElementById('editItemForm').action='/items/'+id+'/edit';
+  document.getElementById('edit-item-name').value=name;
+  document.getElementById('edit-item-price').value=price;
+  const sel=document.getElementById('edit-item-uom');
+  for(let o of sel.options) o.selected=(o.value===uom);
+  openModal('editItemModal');
+}
+</script>
+{% endblock %}

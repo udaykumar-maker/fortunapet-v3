@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>PI {{ doc.quote_no }} — Print</title>
+<style>
+  @media print{.no-print{display:none!important}body{margin:0}}
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:'Segoe UI',Arial,sans-serif;color:#1a1a1a;background:#fff;padding:20px;font-size:12px}
+  .no-print{text-align:center;margin-bottom:16px;display:flex;gap:10px;justify-content:center}
+  .btn{padding:8px 20px;border-radius:6px;border:1px solid #ccc;cursor:pointer;font-size:13px;background:#fff}
+  .btn-primary{background:#0B2545;color:#fff;border-color:#0B2545}
+  .header{display:flex;align-items:flex-start;gap:20px;margin-bottom:16px;padding-bottom:12px;border-bottom:2px solid #0B2545}
+  .header img{width:140px;height:auto}
+  .company-info{flex:1}
+  .company-info h2{font-size:14px;font-weight:700;color:#0B2545;margin-bottom:4px}
+  .company-info p{font-size:11px;color:#444;line-height:1.5}
+  .doc-title{text-align:center;font-size:18px;font-weight:700;color:#0B2545;margin:14px 0;letter-spacing:1px;text-transform:uppercase}
+  .meta{display:flex;justify-content:space-between;margin-bottom:14px;gap:20px}
+  .meta-left table,.meta-right table{border-collapse:collapse;font-size:11.5px}
+  .meta-left td:first-child,.meta-right td:first-child{color:#666;padding-right:12px;white-space:nowrap}
+  .meta-left td,.meta-right td{padding:2px 4px}
+  .meta-right{text-align:right}
+  .bill-to{background:#F0F4FA;border-radius:6px;padding:10px 14px;font-size:11.5px}
+  .bill-to strong{font-size:12px;color:#0B2545}
+  table.items{width:100%;border-collapse:collapse;margin-bottom:12px;font-size:11.5px}
+  table.items th{background:#0B2545;color:#fff;padding:7px 8px;text-align:left;font-size:11px}
+  table.items th:last-child,table.items th:nth-child(5),table.items th:nth-child(6),table.items th:nth-child(7){text-align:right}
+  table.items td{padding:6px 8px;border-bottom:1px solid #e5e7eb}
+  table.items td:last-child,table.items td:nth-child(5),table.items td:nth-child(6),table.items td:nth-child(7){text-align:right}
+  table.items tr:nth-child(even) td{background:#F7FAFF}
+  .totals{margin-left:auto;width:260px;font-size:12px}
+  .totals table{width:100%;border-collapse:collapse}
+  .totals td{padding:4px 8px}
+  .totals td:last-child{text-align:right;font-weight:500}
+  .totals .grand td{font-size:14px;font-weight:700;color:#0B2545;border-top:2px solid #0B2545;padding-top:8px}
+  .bottom{display:flex;gap:20px;margin-top:14px;font-size:11px}
+  .terms{flex:1}.bank{flex:1}
+  .section-title{font-weight:700;color:#0B2545;margin-bottom:5px;font-size:11.5px}
+  .bank table{border-collapse:collapse;font-size:11px}
+  .bank td:first-child{color:#555;padding-right:10px;white-space:nowrap}
+  .bank td{padding:2px 0}
+  .footer{text-align:center;margin-top:16px;padding-top:10px;border-top:1px solid #e5e7eb;font-size:10.5px;color:#888}
+</style>
+</head>
+<body>
+
+<div class="no-print">
+  <button class="btn btn-primary" onclick="window.print()">🖨 Print / Save as PDF</button>
+  <button class="btn" onclick="window.close()">✕ Close</button>
+</div>
+
+<!-- HEADER -->
+<div class="header">
+  <img src="/static/logo.png" alt="FortunaPet" onerror="this.style.display='none'">
+  <div class="company-info">
+    <h2>{{ COMPANY_NAME }}</h2>
+    <p>{{ COMPANY_ADDRESS }}</p>
+    <p>URL: {{ COMPANY_URL }} | Email: {{ COMPANY_EMAIL }}</p>
+  </div>
+</div>
+
+<div class="doc-title">Proforma Invoice</div>
+
+<!-- META -->
+<div class="meta">
+  <div>
+    <table class="meta-left">
+      <tr><td>PI Number</td><td><strong>{{ doc.quote_no }}</strong></td></tr>
+      <tr><td>Date</td><td>{{ doc.doc_date.strftime('%d %B %Y') }}</td></tr>
+      <tr><td>Dispatch From</td><td>{{ doc.dispatch_from or '—' }}</td></tr>
+    </table>
+  </div>
+  <div class="bill-to">
+    <strong>Bill To</strong><br>
+    {{ doc.customer.name if doc.customer else '—' }}<br>
+    {% if doc.customer and doc.customer.contact_person %}{{ doc.customer.contact_person }}<br>{% endif %}
+    {% if doc.customer and doc.customer.phone %}Phone: {{ doc.customer.phone }}<br>{% endif %}
+    {% if doc.customer and doc.customer.gst_number %}GST: {{ doc.customer.gst_number }}{% endif %}
+  </div>
+</div>
+
+<!-- ITEMS TABLE -->
+<table class="items">
+  <thead><tr>
+    <th>Description</th><th>Pkg/Box</th><th>Qty</th><th>Total Qty</th><th>UOM</th><th>Rate (Rs.)</th><th>Amount (Rs.)</th>
+  </tr></thead>
+  <tbody>
+    {% if doc.line_items %}
+      {% for li in doc.line_items %}
+      <tr>
+        <td>{{ li.item_desc }}</td>
+        <td style="text-align:center">{{ li.packaging or '—' }}</td>
+        <td style="text-align:center">{{ "{:,.0f}".format(li.qty) if li.qty else '—' }}</td>
+        <td style="text-align:center">{{ "{:,.0f}".format(li.total_qty) }}</td>
+        <td>{{ li.uom or '—' }}</td>
+        <td>{{ "{:,.2f}".format(li.price) if li.price else '—' }}</td>
+        <td>{{ "{:,.2f}".format(li.line_total) }}</td>
+      </tr>
+      {% endfor %}
+    {% else %}
+      <tr>
+        <td>{{ doc.item_desc or '—' }}</td>
+        <td style="text-align:center">{{ doc.packaging or '—' }}</td>
+        <td style="text-align:center">{{ "{:,.0f}".format(doc.qty) if doc.qty else '—' }}</td>
+        <td style="text-align:center">—</td>
+        <td>{{ doc.uom or '—' }}</td>
+        <td>{{ doc.price or '—' }}</td>
+        <td>{{ "{:,.2f}".format(doc.base_amount) }}</td>
+      </tr>
+    {% endif %}
+  </tbody>
+</table>
+
+<!-- TOTALS -->
+<div style="display:flex;justify-content:flex-end;margin-bottom:16px">
+  <div class="totals">
+    <table>
+      <tr><td>Base Amount</td><td>Rs. {{ "{:,.2f}".format(doc.base_amount) }}</td></tr>
+      {% if doc.gst_applied %}<tr><td>GST @ 18%</td><td>Rs. {{ "{:,.2f}".format(doc.gst_amount) }}</td></tr>{% endif %}
+      {% if doc.freight_charges %}<tr><td>Freight Charges</td><td>Rs. {{ "{:,.2f}".format(doc.freight_charges) }}</td></tr>{% endif %}
+      <tr class="grand"><td>Total Payable</td><td>Rs. {{ "{:,.2f}".format(doc.total_amount) }}</td></tr>
+    </table>
+  </div>
+</div>
+
+{% if doc.notes %}
+<p style="font-size:11.5px;margin-bottom:14px"><strong>Notes:</strong> {{ doc.notes }}</p>
+{% endif %}
+
+<!-- BOTTOM: TERMS + BANK -->
+<div class="bottom">
+  <div class="terms">
+    <div class="section-title">Note: Terms & Conditions</div>
+    {% for t in TERMS %}<p>{{ loop.index }}. {{ t }}</p>{% endfor %}
+  </div>
+  <div class="bank">
+    <div class="section-title">Bank Account Details</div>
+    <table>
+      {% for k,v in BANK.items() %}<tr><td>{{ k }}</td><td>{{ v }}</td></tr>{% endfor %}
+    </table>
+  </div>
+</div>
+
+<div class="footer">This is a system-generated document. Thank you for your business.</div>
+</body>
+</html>

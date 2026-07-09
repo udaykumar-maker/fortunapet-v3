@@ -1,0 +1,127 @@
+{% extends "base.html" %}
+{% block title %}Dashboard — FORTUNAPET PI TRACKER{% endblock %}
+{% block content %}
+<div class="toolbar">
+  <h1 class="page-title">Dashboard</h1>
+  {% if current_user.is_admin() %}
+  <form method="GET" style="display:flex;gap:8px;align-items:center">
+    <select name="staff_id" onchange="this.form.submit()" style="width:200px">
+      <option value="">All Staff</option>
+      {% for s in all_staff %}
+      <option value="{{ s.id }}" {{ 'selected' if staff_filter==s.id }}>{{ s.full_name }}</option>
+      {% endfor %}
+    </select>
+  </form>
+  {% endif %}
+</div>
+
+<div class="metrics">
+  <div class="metric"><div class="lbl">Total Value</div><div class="val">Rs.{{ "{:,.0f}".format(total_amount) }}</div></div>
+  <div class="metric"><div class="lbl">Delivered</div><div class="val" style="color:var(--success)">Rs.{{ "{:,.0f}".format(delivered_amount) }}</div></div>
+  <div class="metric"><div class="lbl">Pending</div><div class="val" style="color:var(--warning)">Rs.{{ "{:,.0f}".format(pending_amount) }}</div><div class="sub">{{ pending_count }} PI(s)</div></div>
+  <div class="metric"><div class="lbl">Lost</div><div class="val" style="color:var(--purple)">{{ lost_count }}</div></div>
+  <div class="metric"><div class="lbl">Overdue Follow-ups</div><div class="val" style="color:var(--danger)">{{ overdue|length }}</div></div>
+</div>
+
+{% if overdue %}<div class="alert-banner danger">⚠️ <strong>{{ overdue|length }} PI(s) overdue</strong> — follow up now!</div>{% endif %}
+{% if due_soon %}<div class="alert-banner warning">🔔 <strong>{{ due_soon|length }} PI(s)</strong> need follow-up within 2 days</div>{% endif %}
+
+<!-- CHARTS ROW -->
+<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:14px;margin-bottom:14px">
+  <div class="card" style="padding:16px">
+    <div style="font-size:12px;font-weight:700;margin-bottom:10px;color:var(--accent)">📊 Monthly Sales (6 months)</div>
+    <canvas id="monthlySalesChart" height="180"></canvas>
+  </div>
+  <div class="card" style="padding:16px">
+    <div style="font-size:12px;font-weight:700;margin-bottom:10px;color:var(--accent)">🏆 Top 10 Customers</div>
+    <canvas id="topCustomersChart" height="180"></canvas>
+  </div>
+  <div class="card" style="padding:16px">
+    <div style="font-size:12px;font-weight:700;margin-bottom:10px;color:var(--accent)">📦 Top 10 Items by Value</div>
+    <canvas id="topItemsChart" height="180"></canvas>
+  </div>
+</div>
+
+{% if current_user.is_admin() and staff_totals %}
+<div class="card" style="margin-bottom:14px">
+  <div style="font-size:13px;font-weight:700;margin-bottom:10px;color:var(--accent)">Staff Delivered Value</div>
+  <table>
+    <thead><tr><th>Staff</th><th>Total PI Value</th><th>Delivered Value</th></tr></thead>
+    <tbody>
+      {% for st in staff_totals %}
+      <tr>
+        <td>{{ st.name }}</td>
+        <td>Rs.{{ "{:,.0f}".format(st.total) }}</td>
+        <td style="color:var(--success);font-weight:600">Rs.{{ "{:,.0f}".format(st.delivered) }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endif %}
+
+<div class="card">
+  <div style="font-size:13px;font-weight:700;margin-bottom:10px;color:var(--accent)">Pending PIs — Quick View</div>
+  {% if pending_docs %}
+  <table>
+    <thead><tr><th>PI No.</th><th>Customer</th><th>Items</th><th>Total</th><th>Follow-up</th><th>Status</th></tr></thead>
+    <tbody>
+      {% for d in pending_docs %}
+      <tr>
+        <td><span class="badge b-accent">{{ d.quote_no }}</span></td>
+        <td>{{ d.customer.name }}</td>
+        <td style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ d.items_summary }}</td>
+        <td>Rs.{{ "{:,.0f}".format(d.total_amount) }}</td>
+        <td>{{ d.follow_up_date.strftime('%d %b') if d.follow_up_date else '—' }}</td>
+        <td>
+          {% if d.follow_up_date and d.follow_up_date < today %}<span class="badge b-danger">Overdue</span>
+          {% elif d.status=='price_approval_pending' %}<span class="badge b-warning">Price Approval</span>
+          {% elif d.status=='purchase_with_another_vendor' %}<span class="badge b-blue">Other Vendor</span>
+          {% else %}<span class="badge b-warning">Pending</span>{% endif %}
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}<div class="empty">All PIs delivered! 🎉</div>{% endif %}
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<script>
+const ACCENT='#0B2545', ACCENT2='#1B4F8A', GREEN='#16a34a', LGREY='#D0DCF0';
+const chartDefaults={plugins:{legend:{display:false}},scales:{x:{grid:{color:LGREY},ticks:{font:{size:9}}},y:{grid:{color:LGREY},ticks:{font:{size:9},callback:v=>'Rs.'+Number(v).toLocaleString('en-IN')}}}};
+
+// Monthly Sales Chart
+fetch('/api/charts/monthly-sales').then(r=>r.json()).then(data=>{
+  new Chart(document.getElementById('monthlySalesChart'),{
+    type:'bar',
+    data:{
+      labels:data.map(d=>d.label),
+      datasets:[
+        {label:'Total',data:data.map(d=>d.total),backgroundColor:ACCENT2+'99',borderRadius:4},
+        {label:'Delivered',data:data.map(d=>d.delivered),backgroundColor:GREEN+'99',borderRadius:4}
+      ]
+    },
+    options:{...chartDefaults,plugins:{legend:{display:true,labels:{font:{size:9},boxWidth:12}}}}
+  });
+});
+
+// Top Customers Chart
+fetch('/api/charts/top-customers').then(r=>r.json()).then(data=>{
+  new Chart(document.getElementById('topCustomersChart'),{
+    type:'bar',
+    data:{labels:data.map(d=>d.name),datasets:[{data:data.map(d=>d.delivered),backgroundColor:ACCENT2+'BB',borderRadius:4}]},
+    options:{...chartDefaults,indexAxis:'y',scales:{x:{...chartDefaults.scales.x},y:{ticks:{font:{size:9}}}}}
+  });
+});
+
+// Top Items Chart
+fetch('/api/charts/top-items').then(r=>r.json()).then(data=>{
+  new Chart(document.getElementById('topItemsChart'),{
+    type:'bar',
+    data:{labels:data.map(d=>d.name),datasets:[{data:data.map(d=>d.value),backgroundColor:GREEN+'BB',borderRadius:4}]},
+    options:{...chartDefaults,indexAxis:'y',scales:{x:{...chartDefaults.scales.x},y:{ticks:{font:{size:9}}}}}
+  });
+});
+</script>
+{% endblock %}
